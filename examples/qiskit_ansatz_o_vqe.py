@@ -134,13 +134,18 @@ def print_outcome_table(samples: list[Expectations]) -> None:
     """Print the five-run report table with operators as rows."""
     energies = [sample.energy for sample in samples]
     mean_energy = statistics.mean(energies)
+    variance_energy = statistics.variance(energies) if len(energies) > 1 else 0.0
     std_energy = statistics.stdev(energies) if len(energies) > 1 else 0.0
     rows = [
         ["Exp", "{IXX}", *[format_cell(sample.ixx) for sample in samples]],
         ["", "{ZZI}", *[format_cell(sample.zzi) for sample in samples]],
         ["", "{ZIZ}", *[format_cell(sample.ziz) for sample in samples]],
         ["E", "E=2{ZZI}+{ZIZ}-{IXX}", *[format_cell(energy) for energy in energies]],
-        ["Stats", f"<E>={mean_energy:.6f}  sigma={std_energy:.6f}", *["" for _ in samples]],
+        [
+            "Stats",
+            f"<E>={mean_energy:.6f}  Var={variance_energy:.6f}  sigma={std_energy:.6f}",
+            *["" for _ in samples],
+        ],
     ]
     headers = ["", "Operator", *[f"Run {index + 1}" for index in range(len(samples))]]
     widths = [
