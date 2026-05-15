@@ -50,6 +50,17 @@ simulator runs. To evaluate your own parameters instead of optimizing:
 python examples/qiskit_ansatz_o_vqe.py --theta 2.82 --phi 1.87
 ```
 
+## Generate the all-ansatz determination table
+
+```bash
+python examples/qiskit_ansatz_determination_table.py
+```
+
+This ranks Appendix 1 ansätze A through O by optimized exact energy for
+`H = 2 * ZZI + ZIZ - IXX`. It also runs five independent 1024-shot simulator
+estimates per ansatz and prints the sampled mean, variance, and standard
+deviation.
+
 ## Add your own circuits
 
 Create another Python script under `examples/`, import Qiskit, and run it with
