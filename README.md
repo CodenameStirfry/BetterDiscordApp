@@ -2,6 +2,11 @@ Note that this whole branch is deprecated. all further development is going on h
 
 # BetterDiscordApp
 
+# Qiskit quantum simulation
+
+To run local quantum circuit simulations in Cursor, see
+[`docs/qiskit-simulation.md`](docs/qiskit-simulation.md).
+
 # If you have issues then join the BD Discord server: [Here](https://discord.gg/0Tmfo5ZbORCRqbAd)
 
 # Do not contact Discord support about BD issues. 
