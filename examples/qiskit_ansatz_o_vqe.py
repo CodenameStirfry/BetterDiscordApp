@@ -23,6 +23,7 @@ from scipy.optimize import minimize
 
 
 TWO_PI = 2.0 * math.pi
+BITSTRINGS = tuple(format(index, "03b") for index in range(8))
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,19 @@ class Expectations:
     @property
     def energy(self) -> float:
         return 2.0 * self.zzi + self.ziz - self.ixx
+
+
+@dataclass(frozen=True)
+class SampleResult:
+    expectations: Expectations
+    z_counts: dict[str, int]
+    x_counts: dict[str, int]
+    z_probabilities: dict[str, float]
+    x_probabilities: dict[str, float]
+
+    @property
+    def energy(self) -> float:
+        return self.expectations.energy
 
 
 def build_ansatz_o(theta: float, phi: float) -> QuantumCircuit:
@@ -86,19 +100,26 @@ def optimize_parameters(grid_points: int) -> tuple[float, float, float]:
     return theta, phi, exact_expectations(theta, phi).energy
 
 
-def expectation_from_counts(counts: dict[str, int], qubits: tuple[int, ...]) -> float:
-    """Convert bitstring counts into an expectation for a product observable."""
+def probabilities_from_counts(counts: dict[str, int]) -> dict[str, float]:
+    """Normalize simulator counts into q2 q1 q0 bitstring probabilities."""
     total = sum(counts.values())
-    weighted_sum = 0
+    return {bitstring: counts.get(bitstring, 0) / total for bitstring in BITSTRINGS}
 
-    for bitstring, count in counts.items():
+
+def expectation_from_probabilities(
+    probabilities: dict[str, float], qubits: tuple[int, ...]
+) -> float:
+    """Convert bitstring probabilities into an expectation for a product observable."""
+    weighted_sum = 0.0
+
+    for bitstring, probability in probabilities.items():
         bits_by_qubit = bitstring.replace(" ", "")[::-1]
         eigenvalue = 1
         for qubit in qubits:
             eigenvalue *= 1 if bits_by_qubit[qubit] == "0" else -1
-        weighted_sum += eigenvalue * count
+        weighted_sum += eigenvalue * probability
 
-    return weighted_sum / total
+    return weighted_sum
 
 
 def run_counts(circuit: QuantumCircuit, shots: int, seed: int) -> dict[str, int]:
@@ -110,19 +131,28 @@ def run_counts(circuit: QuantumCircuit, shots: int, seed: int) -> dict[str, int]
     return result.get_counts(compiled)
 
 
-def sampled_expectations(theta: float, phi: float, shots: int, seed: int) -> Expectations:
+def sampled_result(theta: float, phi: float, shots: int, seed: int) -> SampleResult:
     z_circuit = build_ansatz_o(theta, phi)
     z_counts = run_counts(z_circuit, shots=shots, seed=seed)
+    z_probabilities = probabilities_from_counts(z_counts)
 
     x_circuit = build_ansatz_o(theta, phi)
     x_circuit.h(0)
     x_circuit.h(1)
     x_counts = run_counts(x_circuit, shots=shots, seed=seed + 1)
+    x_probabilities = probabilities_from_counts(x_counts)
 
-    return Expectations(
-        zzi=expectation_from_counts(z_counts, (2, 1)),
-        ziz=expectation_from_counts(z_counts, (2, 0)),
-        ixx=expectation_from_counts(x_counts, (1, 0)),
+    expectations = Expectations(
+        zzi=expectation_from_probabilities(z_probabilities, (2, 1)),
+        ziz=expectation_from_probabilities(z_probabilities, (2, 0)),
+        ixx=expectation_from_probabilities(x_probabilities, (1, 0)),
+    )
+    return SampleResult(
+        expectations=expectations,
+        z_counts=z_counts,
+        x_counts=x_counts,
+        z_probabilities=z_probabilities,
+        x_probabilities=x_probabilities,
     )
 
 
@@ -130,24 +160,7 @@ def format_cell(value: float) -> str:
     return f"({value:.6f})"
 
 
-def print_outcome_table(samples: list[Expectations]) -> None:
-    """Print the five-run report table with operators as rows."""
-    energies = [sample.energy for sample in samples]
-    mean_energy = statistics.mean(energies)
-    variance_energy = statistics.variance(energies) if len(energies) > 1 else 0.0
-    std_energy = statistics.stdev(energies) if len(energies) > 1 else 0.0
-    rows = [
-        ["Exp", "{IXX}", *[format_cell(sample.ixx) for sample in samples]],
-        ["", "{ZZI}", *[format_cell(sample.zzi) for sample in samples]],
-        ["", "{ZIZ}", *[format_cell(sample.ziz) for sample in samples]],
-        ["E", "E=2{ZZI}+{ZIZ}-{IXX}", *[format_cell(energy) for energy in energies]],
-        [
-            "Stats",
-            f"<E>={mean_energy:.6f}  Var={variance_energy:.6f}  sigma={std_energy:.6f}",
-            *["" for _ in samples],
-        ],
-    ]
-    headers = ["", "Operator", *[f"Run {index + 1}" for index in range(len(samples))]]
+def render_table(headers: list[str], rows: list[list[str]]) -> None:
     widths = [
         max(len(str(row[column])) for row in [headers, *rows])
         for column in range(len(headers))
@@ -159,12 +172,56 @@ def print_outcome_table(samples: list[Expectations]) -> None:
         ) + " |"
 
     separator = "|-" + "-|-".join("-" * width for width in widths) + "-|"
-
-    print("Simulation Outcomes -- Ansatz O")
     print(render(headers))
     print(separator)
     for row in rows:
         print(render(row))
+
+
+def print_probability_table(
+    title: str,
+    samples: list[SampleResult],
+    probabilities_attribute: str,
+) -> None:
+    print(title)
+    print("Bitstrings are ordered as q2 q1 q0; probabilities are count / shots.")
+    headers = ["State", *[f"Run {index + 1}" for index in range(len(samples))]]
+    rows = []
+    for bitstring in BITSTRINGS:
+        rows.append(
+            [
+                bitstring,
+                *[
+                    format_cell(getattr(sample, probabilities_attribute)[bitstring])
+                    for sample in samples
+                ],
+            ]
+        )
+    render_table(headers, rows)
+    print()
+
+
+def print_outcome_table(samples: list[SampleResult]) -> None:
+    """Print the five-run report table with operators as rows."""
+    energies = [sample.energy for sample in samples]
+    mean_energy = statistics.mean(energies)
+    variance_energy = statistics.variance(energies) if len(energies) > 1 else 0.0
+    std_energy = statistics.stdev(energies) if len(energies) > 1 else 0.0
+    rows = [
+        ["Exp", "{IXX}", *[format_cell(sample.expectations.ixx) for sample in samples]],
+        ["", "{ZZI}", *[format_cell(sample.expectations.zzi) for sample in samples]],
+        ["", "{ZIZ}", *[format_cell(sample.expectations.ziz) for sample in samples]],
+        ["E", "E=2{ZZI}+{ZIZ}-{IXX}", *[format_cell(energy) for energy in energies]],
+        [
+            "Stats",
+            f"<E>={mean_energy:.6f}  Var={variance_energy:.6f}  sigma={std_energy:.6f}",
+            *["" for _ in samples],
+        ],
+    ]
+    headers = ["", "Operator", *[f"Run {index + 1}" for index in range(len(samples))]]
+
+    print("Simulation Outcomes -- Ansatz O")
+    render_table(headers, rows)
 
 
 def parse_args() -> argparse.Namespace:
@@ -205,9 +262,9 @@ def main() -> None:
     print()
     print(f"Sampled simulator runs ({args.shots} shots each):")
 
-    samples: list[Expectations] = []
+    samples: list[SampleResult] = []
     for run_index in range(args.runs):
-        values = sampled_expectations(
+        values = sampled_result(
             theta=theta,
             phi=phi,
             shots=args.shots,
@@ -216,6 +273,16 @@ def main() -> None:
         samples.append(values)
 
     if samples:
+        print_probability_table(
+            "Z-basis measurement probabilities for {ZZI} and {ZIZ}",
+            samples,
+            "z_probabilities",
+        )
+        print_probability_table(
+            "X-basis measurement probabilities for {IXX}",
+            samples,
+            "x_probabilities",
+        )
         print_outcome_table(samples)
 
 
