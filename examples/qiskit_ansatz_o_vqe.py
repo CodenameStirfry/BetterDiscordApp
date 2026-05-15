@@ -126,6 +126,42 @@ def sampled_expectations(theta: float, phi: float, shots: int, seed: int) -> Exp
     )
 
 
+def format_cell(value: float) -> str:
+    return f"({value:.6f})"
+
+
+def print_outcome_table(samples: list[Expectations]) -> None:
+    """Print the five-run report table with operators as rows."""
+    energies = [sample.energy for sample in samples]
+    mean_energy = statistics.mean(energies)
+    std_energy = statistics.stdev(energies) if len(energies) > 1 else 0.0
+    rows = [
+        ["Exp", "{IXX}", *[format_cell(sample.ixx) for sample in samples]],
+        ["", "{ZZI}", *[format_cell(sample.zzi) for sample in samples]],
+        ["", "{ZIZ}", *[format_cell(sample.ziz) for sample in samples]],
+        ["E", "E=2{ZZI}+{ZIZ}-{IXX}", *[format_cell(energy) for energy in energies]],
+        ["Stats", f"<E>={mean_energy:.6f}  sigma={std_energy:.6f}", *["" for _ in samples]],
+    ]
+    headers = ["", "Operator", *[f"Run {index + 1}" for index in range(len(samples))]]
+    widths = [
+        max(len(str(row[column])) for row in [headers, *rows])
+        for column in range(len(headers))
+    ]
+
+    def render(row: list[str]) -> str:
+        return "| " + " | ".join(
+            str(value).ljust(widths[index]) for index, value in enumerate(row)
+        ) + " |"
+
+    separator = "|-" + "-|-".join("-" * width for width in widths) + "-|"
+
+    print("Simulation Outcomes -- Ansatz O")
+    print(render(headers))
+    print(separator)
+    for row in rows:
+        print(render(row))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run homework Ansatz O with Qiskit Aer.")
     parser.add_argument("--theta", type=float, help="Use this theta instead of optimizing.")
@@ -163,9 +199,8 @@ def main() -> None:
     print(f"  E     = {exact:.12f}")
     print()
     print(f"Sampled simulator runs ({args.shots} shots each):")
-    print("run    <ZZI>       <ZIZ>       <IXX>       E")
 
-    energies: list[float] = []
+    samples: list[Expectations] = []
     for run_index in range(args.runs):
         values = sampled_expectations(
             theta=theta,
@@ -173,21 +208,10 @@ def main() -> None:
             shots=args.shots,
             seed=args.seed + 2 * run_index,
         )
-        energies.append(values.energy)
-        print(
-            f"{run_index + 1:>3}  "
-            f"{values.zzi:>10.6f}  "
-            f"{values.ziz:>10.6f}  "
-            f"{values.ixx:>10.6f}  "
-            f"{values.energy:>10.6f}"
-        )
+        samples.append(values)
 
-    if energies:
-        mean_energy = statistics.mean(energies)
-        std_energy = statistics.stdev(energies) if len(energies) > 1 else 0.0
-        print()
-        print(f"mean E = {mean_energy:.12f}")
-        print(f"std E  = {std_energy:.12f}")
+    if samples:
+        print_outcome_table(samples)
 
 
 if __name__ == "__main__":
