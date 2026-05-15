@@ -30,6 +30,26 @@ The script builds a two-qubit Bell circuit, runs it on Qiskit Aer, and prints
 the simulated measurement counts. A healthy run should produce mostly `00` and
 `11` results.
 
+## Run the homework Ansatz O simulation
+
+```bash
+python examples/qiskit_ansatz_o_vqe.py
+```
+
+This script implements Appendix 1 Ansatz O:
+
+```text
+Ry(theta, q0), CX(0,1), Ry(phi, q2), CX(2,1), CX(2,0)
+```
+
+It optimizes `theta` and `phi` against
+`H = 2 * ZZI + ZIZ - IXX`, then estimates the energy with five 1024-shot Aer
+simulator runs. To evaluate your own parameters instead of optimizing:
+
+```bash
+python examples/qiskit_ansatz_o_vqe.py --theta 2.82 --phi 1.87
+```
+
 ## Add your own circuits
 
 Create another Python script under `examples/`, import Qiskit, and run it with
