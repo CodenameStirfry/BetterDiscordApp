@@ -40,10 +40,12 @@ class Expectations:
 @dataclass(frozen=True)
 class SampleResult:
     expectations: Expectations
-    z_counts: dict[str, int]
-    x_counts: dict[str, int]
-    z_probabilities: dict[str, float]
-    x_probabilities: dict[str, float]
+    zzi_counts: dict[str, int]
+    ziz_counts: dict[str, int]
+    ixx_counts: dict[str, int]
+    zzi_probabilities: dict[str, float]
+    ziz_probabilities: dict[str, float]
+    ixx_probabilities: dict[str, float]
 
     @property
     def energy(self) -> float:
@@ -132,27 +134,33 @@ def run_counts(circuit: QuantumCircuit, shots: int, seed: int) -> dict[str, int]
 
 
 def sampled_result(theta: float, phi: float, shots: int, seed: int) -> SampleResult:
-    z_circuit = build_ansatz_o(theta, phi)
-    z_counts = run_counts(z_circuit, shots=shots, seed=seed)
-    z_probabilities = probabilities_from_counts(z_counts)
+    zzi_circuit = build_ansatz_o(theta, phi)
+    zzi_counts = run_counts(zzi_circuit, shots=shots, seed=seed)
+    zzi_probabilities = probabilities_from_counts(zzi_counts)
+
+    ziz_circuit = build_ansatz_o(theta, phi)
+    ziz_counts = run_counts(ziz_circuit, shots=shots, seed=seed + 1)
+    ziz_probabilities = probabilities_from_counts(ziz_counts)
 
     x_circuit = build_ansatz_o(theta, phi)
     x_circuit.h(0)
     x_circuit.h(1)
-    x_counts = run_counts(x_circuit, shots=shots, seed=seed + 1)
-    x_probabilities = probabilities_from_counts(x_counts)
+    ixx_counts = run_counts(x_circuit, shots=shots, seed=seed + 2)
+    ixx_probabilities = probabilities_from_counts(ixx_counts)
 
     expectations = Expectations(
-        zzi=expectation_from_probabilities(z_probabilities, (2, 1)),
-        ziz=expectation_from_probabilities(z_probabilities, (2, 0)),
-        ixx=expectation_from_probabilities(x_probabilities, (1, 0)),
+        zzi=expectation_from_probabilities(zzi_probabilities, (2, 1)),
+        ziz=expectation_from_probabilities(ziz_probabilities, (2, 0)),
+        ixx=expectation_from_probabilities(ixx_probabilities, (1, 0)),
     )
     return SampleResult(
         expectations=expectations,
-        z_counts=z_counts,
-        x_counts=x_counts,
-        z_probabilities=z_probabilities,
-        x_probabilities=x_probabilities,
+        zzi_counts=zzi_counts,
+        ziz_counts=ziz_counts,
+        ixx_counts=ixx_counts,
+        zzi_probabilities=zzi_probabilities,
+        ziz_probabilities=ziz_probabilities,
+        ixx_probabilities=ixx_probabilities,
     )
 
 
@@ -268,20 +276,25 @@ def main() -> None:
             theta=theta,
             phi=phi,
             shots=args.shots,
-            seed=args.seed + 2 * run_index,
+            seed=args.seed + 3 * run_index,
         )
         samples.append(values)
 
     if samples:
         print_probability_table(
-            "Z-basis measurement probabilities for {ZZI} and {ZIZ}",
+            "Z-basis measurement probabilities for {ZZI}",
             samples,
-            "z_probabilities",
+            "zzi_probabilities",
+        )
+        print_probability_table(
+            "Z-basis measurement probabilities for {ZIZ}",
+            samples,
+            "ziz_probabilities",
         )
         print_probability_table(
             "X-basis measurement probabilities for {IXX}",
             samples,
-            "x_probabilities",
+            "ixx_probabilities",
         )
         print_outcome_table(samples)
 
