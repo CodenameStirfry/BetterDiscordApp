@@ -335,7 +335,7 @@ def rank_ansatze(args: argparse.Namespace) -> list[RankingResult]:
                 sampled_energies=sampled,
             )
         )
-    return sorted(results, key=lambda result: result.exact_energy)
+    return sorted(results, key=lambda result: (result.sampled_mean, result.exact_energy))
 
 
 def format_float(value: float) -> str:
@@ -393,7 +393,7 @@ def print_ranking_table(results: list[RankingResult]) -> None:
             ]
         )
 
-    print("Minimization of E -- Ansatz Determination Table")
+    print("Minimization of E -- Ansatz Determination Table ranked by lowest simulator mean E")
     render_table(headers, rows)
 
 
