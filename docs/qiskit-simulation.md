@@ -5,6 +5,14 @@ computing circuits on a local simulator from Cursor.
 
 ## Create and activate the environment
 
+If `python3 -m venv .venv` reports that `ensurepip` is unavailable on
+Ubuntu/Debian, install venv support first:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python3.12-venv
+```
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
